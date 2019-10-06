@@ -4,6 +4,7 @@ from math import ceil, floor, sqrt
 from car_model import Car
 import matplotlib.pyplot as plt
 import numpy
+import argparse
 global car
 
 car = Car()
@@ -104,15 +105,21 @@ def load_course_map(course_name="COTA"):
         pass
 
     return elev_profile
- 
+
+parser = argparse.ArgumentParser(description="Add parameters to model")
+parser.add_argument("-d", "--distance", type=int, required=True, help="Distance to travel (m)")
+parser.add_argument("-t", "--time", type=int, required=True, help="Maximum allowable time (s)")
+parser.add_argument("-i", "--iterations", type=int, required=True, help="Number of iterations to run")
+parser.add_argument("-v", "--min_velocity", type=int, required=True, help="Minimum allowable velocity (m/s)")
+args = parser.parse_args()
+
 if __name__ == '__main__':
     elev_profile = load_course_map()
     # Load in the distance and necessary time for a lap
-    #TODO make these values user given
-    distance = 5490
-    time = 1000  # max allowable time in s
-    iterations = 5000  # Number of iterations to use
-    min_velocity = 5
+    distance = args.distance
+    time = args.time  # max allowable time in s
+    iterations = args.iterations  # Number of iterations to use
+    min_velocity = args.min_velocity
 
     init_profile = generate_initial_profile(time, distance, elev_profile)
     v_profile = init_profile
