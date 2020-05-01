@@ -65,14 +65,12 @@ def load_course_map(course_name="COTA"):
         pass
     return (elev_profile, stops, total_dist)
 
-def generate_initial_section(avg_v, time, distance, e_profile, min_velocity,
-                             stop_profile, max_stop_velocity):
+def generate_initial_section(avg_v, e_profile, min_velocity):
     """
-    :param time: Maximum allowable time to cover a distance in seconds
-    :param distance: Distance to be covered in meters
+    :param avg_v: Average velocity in m/s
     :param e_profile: List of pitches the car must travel
     :param min_velocity: Minimum allowable velocity
-    :param stop_profile: List of indices where car must stop
+    :return: initial_profile: a velocity profile of the given section
     """
     initial_profile = [avg_v]
     for point in range(len(e_profile) - 1):  # We don't care about the endpoint
@@ -92,7 +90,15 @@ def generate_initial_section(avg_v, time, distance, e_profile, min_velocity,
     return initial_profile
 
 def generate_initial_profile(total_time, total_distance, e_profile,
-                            min_velocity, stop_profile, max_stop_velocity):
+                            min_velocity, stop_profile):
+    """
+    :param total_time: total time allowable in the race
+    :param total_distance: total distance of the track
+    :param e_profile: profile of elevations for the entire track
+    :param min_velocity: minimum allowable velocity
+    :param stop_profile: profile of stops in the race
+    :return: initial_profile: array of sections that describe velocity between stops
+    """
     total_distance = float(total_distance)
     avg_velocity = total_distance / total_time
     initial_profile = []
@@ -103,30 +109,22 @@ def generate_initial_profile(total_time, total_distance, e_profile,
         section_distance = 0
         for entry in e_section:
             section_distance += entry[1]
-        section_time = total_time * section_distance / total_distance
         initial_profile.append(
-            (generate_initial_section(avg_velocity, section_time,
-                                     section_distance, e_section,
-                                     min_velocity, stop_profile,
-                                     max_stop_velocity),
-            e_section))
+            (generate_initial_section(avg_velocity, e_section, min_velocity), e_section))
     e_section = e_profile[prev_stop:]
     section_distance = 0
     for entry in e_section:
         section_distance += entry[1]
-    section_time = total_time * section_distance / total_distance
     initial_profile.append(
-        (generate_initial_section(avg_velocity, section_time, section_distance,
-                                 e_section, min_velocity, stop_profile,
-                                 max_stop_velocity),
-         e_section))
+        (generate_initial_section(avg_velocity, e_section, min_velocity), e_section))
     return initial_profile
 
 def apply_stops(v_profile, e_profile, stop_v=1, calc_interval=10):
     """
     :param v_profile: optimized velocity profile
     :param e_profile: elevation measurements
-    :param stop_profile: places on e_profile where the car must stop
+    :param stop_v: velocity to be travelling to be considered a stop
+    :param calc_interval: interval at which we should be calculating at in m
     :return: updated v_profile to allow for stops
     """
     def apply_rolldown(v_section, e_section, stop_v=1, calc_interval=10):
@@ -185,7 +183,7 @@ if __name__ == "__main__":
 
         def objective(v_profile):
             energy = car.energy_used(v_section, e_section)
-            return energy / 1000000
+            return energy / 10000
 
         def time_constraint(v_profile):
             time_used = [e_section[i][1] / v_section[i]
@@ -206,7 +204,6 @@ if __name__ == "__main__":
                 if v_section[i] > max_velocity:
                     error += max_velocity - v_section[i]
 
-            print("error %f" % error)
             return error
 
         # initial guess
@@ -222,19 +219,17 @@ if __name__ == "__main__":
         condition1 = {'type': 'ineq', 'fun': time_constraint}
         condition2 = {'type': 'ineq', 'fun': speed_constraint}
         conditions = ([condition1, condition2])
-        solution = minimize(objective, v0, method='SLSQP',
-                            bounds=bounds, constraints=conditions)
+        solution = minimize(objective, v0, method='trust-constr',
+                            bounds=bounds, constraints=conditions, options={"disp": True,  "maxiter": 1000})
+
         v = solution.x
         message = solution.message
         status = solution.status
         print(message)
         print(status)
-        # print(v)
+        print(v)
         final_v_profile.append(v[1:])
         final_e_profile.append(e_section[1:])
 
     final_v_profile = apply_stops(final_v_profile, final_e_profile,
                                   max_stop_velocity, calc_interval=1)
-
-    for prof in final_v_profile:
-        print(prof)
